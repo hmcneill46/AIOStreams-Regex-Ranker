@@ -14,13 +14,19 @@ The entire application runs **100% in the browser** — no backend, no build ste
 
 ---
 
-## Demo
+## Live site
 
-If hosted with GitHub Pages, you can open the tool directly in your browser.
+You can use the app here:
 
-Example usage:
+**[https://hmcneill46.github.io/AIOStreams-Regex-Ranker/](https://hmcneill46.github.io/AIOStreams-Regex-Ranker/)**
 
-```
+---
+
+## Demo / Usage
+
+Paste filenames such as:
+
+```text
 Moonlight.2016.REMUX.1080p.BluRay.AVC.DTS-HD.MA.5.1-iFT.mkv
 Alien.Romulus.2024.2160p.UHD.BluRay.REMUX.TrueHD.Atmos.7.1-FraMeSToR.mkv
 The.Bear.S03E01.2160p.WEB-DL.DDP5.1.H.265-NTb.mkv
@@ -41,20 +47,18 @@ The app will detect attributes such as:
 
 ---
 
-# Features
+## Features
 
 ### Live rule fetching
 
 Rules are fetched directly from GitHub:
 
-```
+```text
 https://raw.githubusercontent.com/Vidhin05/Releases-Regex/main/English/expressions.json
 https://raw.githubusercontent.com/Vidhin05/Releases-Regex/main/English/regexes.json
 ```
 
 This means the tool automatically benefits from **upstream improvements**.
-
----
 
 ### Flexible filtering
 
@@ -75,8 +79,6 @@ You can also:
 * Filter by minimum score
 * Sort by score, resolution, rules matched, or filename
 
----
-
 ### Detailed rule breakdown
 
 Each analysed release shows:
@@ -87,8 +89,6 @@ Each analysed release shows:
 * Individual scoring rules that contributed to the score
 
 This makes it easy to understand **why a release ranked higher or lower**.
-
----
 
 ### Works entirely client-side
 
@@ -104,46 +104,47 @@ Your filenames never leave your machine.
 
 ---
 
-# Installation / Usage
+## Installation / Usage
 
-## Option 1 — Use GitHub Pages
+### Option 1 — Use the hosted version
+
+Open:
+
+**[https://hmcneill46.github.io/AIOStreams-Regex-Ranker/](https://hmcneill46.github.io/AIOStreams-Regex-Ranker/)**
+
+### Option 2 — Host with GitHub Pages
 
 1. Upload `index.html` to a repository
 2. Enable **GitHub Pages**
 3. Open the published site
 
-That's it.
+### Option 3 — Run locally
 
----
+Simply open:
 
-## Option 2 — Run locally
-
-Simply open the file:
-
-```
+```text
 index.html
 ```
 
 in your browser.
 
-However some browsers restrict `fetch()` when opening files directly from disk.
-If that happens, run a simple local server:
+Some browsers restrict `fetch()` when opening files directly from disk. If that happens, run a simple local server instead.
 
-### Python
+#### Python
 
-```
+```bash
 python3 -m http.server
 ```
 
 then open:
 
-```
+```text
 http://localhost:8000
 ```
 
 ---
 
-# Custom Rule Sources
+## Custom rule sources
 
 The tool allows custom JSON URLs for both rule files.
 
@@ -151,7 +152,7 @@ You can override the default sources with any compatible endpoints.
 
 Fields:
 
-```
+```text
 Expressions JSON URL
 Regexes JSON URL
 ```
@@ -160,9 +161,9 @@ The JSON must match the structure used by the Releases-Regex repository.
 
 ---
 
-# How scoring works
+## How scoring works
 
-Each filename is processed in three stages:
+Each filename is processed in three stages.
 
 ### 1. Regex detection
 
@@ -185,74 +186,55 @@ The tool extracts:
 
 Each rule from `expressions.json` is compiled into a JavaScript expression.
 
-If the rule evaluates to true:
+If a rule evaluates to true, its score is added to the total.
 
-```
-score += rule.score
-```
-
-The final score represents the **quality ranking of the release**.
+The final score represents the app’s interpretation of the **quality ranking of the release** using the upstream rule set.
 
 ---
 
-# Limitations
+## Limitations
 
-This client implements most of the ranking environment but **not everything**.
+This client implements most of the ranking environment, but not everything.
 
 Currently unsupported:
 
-* SeaDex helper logic used for anime ranking
+* SeaDex helper logic used for some anime ranking rules
 
-Rules requiring SeaDex are skipped but clearly shown in the UI.
+Rules requiring SeaDex are skipped, and the UI makes that clear.
 
 ---
 
-# Example Score Output
+## Example analysed filename
 
-Example release:
-
-```
+```text
 Alien.Romulus.2024.2160p.UHD.BluRay.REMUX.TrueHD.Atmos.7.1-FraMeSToR.mkv
 ```
 
-Possible attributes:
+Possible detected attributes:
 
-```
+```text
 Resolution: 2160p
 Source: REMUX
-Visual: DV HDR
+Visual: DV / HDR
 Audio: TrueHD Atmos
 Codec: HEVC
 Release group: FraMeSToR
 ```
 
-Score contributions might include:
-
-```
-+5000  TrueHD Atmos
-+1700  WEB Tier 1
-+1000  Dolby Vision
-+500   HDR
-+100   4K
-```
-
 ---
 
-# Credits
+## Credits
 
 Ranking rules are sourced from:
 
 **Releases-Regex**
-
 [https://github.com/Vidhin05/Releases-Regex](https://github.com/Vidhin05/Releases-Regex)
 
-This tool simply provides a **visual interface and client-side evaluation engine** for those rules.
+This project provides a **browser-based interface and client-side evaluation engine** for those rules.
 
 ---
 
-# License
+## License
 
 Use freely.
 No warranty is provided.
-
----
