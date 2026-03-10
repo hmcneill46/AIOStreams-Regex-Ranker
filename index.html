@@ -544,29 +544,31 @@
 
           <div class="stack">
             <div>
-              <label class="label" for="expressionsUrlInput">Expressions JSON URL (optional override)</label>
-              <input type="text" id="expressionsUrlInput" spellcheck="false" placeholder="https://example.com/custom-expressions.json" />
+              <label class="label" for="expressionsUrlInput">Expressions JSON URL</label>
+              <input type="text" id="expressionsUrlInput" spellcheck="false" placeholder="https://example.com/expressions.json" />
             </div>
             <div>
-              <label class="label" for="regexesUrlInput">Regexes JSON URL (optional override)</label>
-              <input type="text" id="regexesUrlInput" spellcheck="false" placeholder="https://example.com/custom-regexes.json" />
+              <label class="label" for="regexesUrlInput">Regexes JSON URL</label>
+              <input type="text" id="regexesUrlInput" spellcheck="false" placeholder="https://example.com/regexes.json" />
+            </div>
+            <div class="button-row">
+              <button class="btn-secondary" id="resetUrlsBtn" type="button">Use default URLs</button>
             </div>
           </div>
 
           <div class="button-row">
             <button class="btn-primary" id="analyseBtn">Analyse</button>
             <button class="btn-secondary" id="sampleBtn">Load sample filenames</button>
-            <button class="btn-secondary" id="defaultUrlsBtn">Use default URLs</button>
             <button class="btn-ghost" id="clearBtn">Clear</button>
           </div>
 
           <div id="loadStatus" class="status">Rules have not been loaded yet.</div>
 
           <p class="help">
-            By default this app fetches the live rules from the Vidhin05 GitHub raw URLs on every
-            analysis run, but you can optionally override either URL above with any direct link to a
-            JSON file. SeaDex-specific anime ranking logic is shown as unsupported and won’t affect
-            the score in this client.
+            By default this app fetches the live rules from the two GitHub URLs on every analysis run,
+            but you can override either URL above with any direct JSON endpoint that returns the same
+            structure. SeaDex-specific anime ranking logic is shown as unsupported and won’t affect the
+            score in this client.
           </p>
 
           <div class="filter-section">
@@ -657,9 +659,9 @@
       languageSelect: document.getElementById("languageSelect"),
       expressionsUrlInput: document.getElementById("expressionsUrlInput"),
       regexesUrlInput: document.getElementById("regexesUrlInput"),
+      resetUrlsBtn: document.getElementById("resetUrlsBtn"),
       analyseBtn: document.getElementById("analyseBtn"),
       sampleBtn: document.getElementById("sampleBtn"),
-      defaultUrlsBtn: document.getElementById("defaultUrlsBtn"),
       clearBtn: document.getElementById("clearBtn"),
       loadStatus: document.getElementById("loadStatus"),
       dynamicFilters: document.getElementById("dynamicFilters"),
@@ -707,40 +709,36 @@
       "Unknown": -2,
     };
 
-
-    function getConfiguredUrls() {
-      const expressionsUrl = els.expressionsUrlInput.value.trim() || DEFAULT_EXPRESSIONS_URL;
-      const regexesUrl = els.regexesUrlInput.value.trim() || DEFAULT_REGEXES_URL;
-      return { expressionsUrl, regexesUrl };
+    function normaliseUrl(value, fallback) {
+      const trimmed = String(value || "").trim();
+      if (!trimmed) return fallback;
+      return trimmed;
     }
 
-    function applyDefaultUrls() {
+    function getConfiguredRuleUrls() {
+      return {
+        expressionsUrl: normaliseUrl(els.expressionsUrlInput?.value, DEFAULT_EXPRESSIONS_URL),
+        regexesUrl: normaliseUrl(els.regexesUrlInput?.value, DEFAULT_REGEXES_URL),
+      };
+    }
+
+    function persistRuleUrls() {
+      const { expressionsUrl, regexesUrl } = getConfiguredRuleUrls();
+      localStorage.setItem(STORAGE_KEYS.expressionsUrl, expressionsUrl);
+      localStorage.setItem(STORAGE_KEYS.regexesUrl, regexesUrl);
+    }
+
+    function loadSavedRuleUrls() {
+      const savedExpressionsUrl = localStorage.getItem(STORAGE_KEYS.expressionsUrl);
+      const savedRegexesUrl = localStorage.getItem(STORAGE_KEYS.regexesUrl);
+      els.expressionsUrlInput.value = savedExpressionsUrl || DEFAULT_EXPRESSIONS_URL;
+      els.regexesUrlInput.value = savedRegexesUrl || DEFAULT_REGEXES_URL;
+    }
+
+    function resetRuleUrlsToDefaults() {
       els.expressionsUrlInput.value = DEFAULT_EXPRESSIONS_URL;
       els.regexesUrlInput.value = DEFAULT_REGEXES_URL;
-      persistConfiguredUrls();
-    }
-
-    function persistConfiguredUrls() {
-      try {
-        localStorage.setItem(STORAGE_KEYS.expressionsUrl, els.expressionsUrlInput.value.trim());
-        localStorage.setItem(STORAGE_KEYS.regexesUrl, els.regexesUrlInput.value.trim());
-      } catch (error) {
-        console.warn("Could not persist URL overrides", error);
-      }
-    }
-
-    function restoreConfiguredUrls() {
-      let expressionsUrl = "";
-      let regexesUrl = "";
-      try {
-        expressionsUrl = localStorage.getItem(STORAGE_KEYS.expressionsUrl) || "";
-        regexesUrl = localStorage.getItem(STORAGE_KEYS.regexesUrl) || "";
-      } catch (error) {
-        console.warn("Could not restore URL overrides", error);
-      }
-
-      els.expressionsUrlInput.value = expressionsUrl || DEFAULT_EXPRESSIONS_URL;
-      els.regexesUrlInput.value = regexesUrl || DEFAULT_REGEXES_URL;
+      persistRuleUrls();
     }
 
     function escapeHtml(value) {
@@ -987,11 +985,29 @@
       return flags.length ? flags : ["None"];
     }
 
-    function detectReleaseGroup(filename) {
-      const clean = filename.replace(/\.[A-Za-z0-9]{2,4}$/, "");
-      const match = clean.match(/-([A-Za-z0-9][A-Za-z0-9._-]{1,})$/);
-      if (!match) return "Unknown";
-      return match[1].replace(/[._]+/g, ".");
+    function detectReleaseGroupInfo(filename) {
+      const clean = String(filename || "").replace(/\.[A-Za-z0-9]{2,4}$/i, "");
+      const lastDashIndex = clean.lastIndexOf("-");
+      if (lastDashIndex === -1) {
+        return { name: "Unknown", hasGroup: false };
+      }
+
+      const candidate = clean.slice(lastDashIndex + 1).trim();
+      const plausibleGroup = /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/.test(candidate);
+      const blockedTechnicalTokens = new Set([
+        "WEB", "DL", "WEBDL", "WEBRIP", "BLURAY", "BLU", "RAY", "UHD", "REMUX", "HDR", "HDR10", "HDR10+",
+        "DV", "DOVI", "HEVC", "AVC", "X265", "X264", "H265", "H264", "AAC", "DD", "DDP", "ATMOS", "TRUEHD",
+        "DTS", "MA", "MKV", "MP4"
+      ]);
+      const upperCandidate = candidate.toUpperCase();
+      if (!plausibleGroup || blockedTechnicalTokens.has(upperCandidate)) {
+        return { name: "Unknown", hasGroup: false };
+      }
+
+      return {
+        name: candidate,
+        hasGroup: true,
+      };
     }
 
     function detectQualityTokens(filename) {
@@ -1027,7 +1043,7 @@
       const visual = detectVisualTags(filename);
       const flags = detectFlags(filename);
       const qualityTags = detectQualityTokens(filename);
-      const releaseGroup = detectReleaseGroup(filename);
+      const releaseGroupInfo = detectReleaseGroupInfo(filename);
       const originalLanguage = languageValue === "Japanese" || languageValue === "Other" ? "Other" : languageValue;
 
       return {
@@ -1044,7 +1060,8 @@
           visual,
           flags,
           qualityTags,
-          releaseGroup,
+          releaseGroup: releaseGroupInfo.name,
+          hasReleaseGroup: releaseGroupInfo.hasGroup,
           seasonPack: flags.includes("Season Pack"),
           searchBlob: [
             filename,
@@ -1056,7 +1073,7 @@
             ...audio,
             ...visual,
             ...flags,
-            releaseGroup,
+            releaseGroupInfo.name,
           ].join(" ").toLowerCase(),
         },
       };
@@ -1085,7 +1102,9 @@
           return any(base) && values.some(value => ctx.detected.visual.includes(canonicaliseVisual(value)));
         },
         releaseGroup(base, ...values) {
-          return any(base) && values.some(value => {
+          if (!any(base)) return false;
+          if (!values.length) return ctx.detected.hasReleaseGroup;
+          return values.some(value => {
             if (String(value).toUpperCase() === "HYBRID") return ctx.detected.flags.includes("Hybrid");
             return ctx.detected.releaseGroup.toUpperCase() === String(value).toUpperCase();
           });
@@ -1478,25 +1497,19 @@
     }
 
     async function loadRules() {
-      const { expressionsUrl, regexesUrl } = getConfiguredUrls();
-      persistConfiguredUrls();
+      const { expressionsUrl, regexesUrl } = getConfiguredRuleUrls();
+      persistRuleUrls();
 
-      els.loadStatus.textContent = "Loading expressions and regexes from the configured URLs…";
+      els.loadStatus.textContent = "Loading expressions and regexes…";
       els.loadStatus.className = "status";
 
-      let expressionsResponse;
-      let regexesResponse;
-      try {
-        [expressionsResponse, regexesResponse] = await Promise.all([
-          fetch(expressionsUrl, { cache: "no-store" }),
-          fetch(regexesUrl, { cache: "no-store" }),
-        ]);
-      } catch (error) {
-        throw new Error(`Network error while fetching configured JSON URLs: ${error.message}`);
-      }
+      const [expressionsResponse, regexesResponse] = await Promise.all([
+        fetch(expressionsUrl, { cache: "no-store" }),
+        fetch(regexesUrl, { cache: "no-store" }),
+      ]);
 
       if (!expressionsResponse.ok || !regexesResponse.ok) {
-        throw new Error(`Failed to fetch rules: expressions ${expressionsResponse.status}, regexes ${regexesResponse.status}`);
+        throw new Error(`Failed to fetch rules: ${expressionsResponse.status} / ${regexesResponse.status}`);
       }
 
       const [expressionsJson, regexesJson] = await Promise.all([
@@ -1505,7 +1518,7 @@
       ]);
 
       if (!Array.isArray(expressionsJson) || !Array.isArray(regexesJson)) {
-        throw new Error("The configured URLs must each return a JSON array in the expected format.");
+        throw new Error("The configured URLs did not return the expected JSON arrays.");
       }
 
       state.expressions = expressionsJson.map(compileExpression);
@@ -1521,8 +1534,9 @@
       }
 
       state.rulesLoaded = true;
+      const usingDefaultUrls = expressionsUrl === DEFAULT_EXPRESSIONS_URL && regexesUrl === DEFAULT_REGEXES_URL;
       els.loadStatus.textContent =
-        `Loaded ${state.expressions.length} expressions and ${state.regexGroups.size} named regex groups from the configured URLs.`;
+        `Loaded ${state.expressions.length} expressions and ${state.regexGroups.size} named regex groups from ${usingDefaultUrls ? "the default GitHub URLs" : "your configured URLs"}.`;
       els.loadStatus.className = "status good";
     }
 
@@ -1555,7 +1569,7 @@
         applyFiltersAndRender();
       } catch (error) {
         console.error(error);
-        els.loadStatus.textContent = `Couldn’t load the configured JSON URLs: ${error.message}`;
+        els.loadStatus.textContent = `Couldn’t load the configured JSON: ${error.message}`;
         els.loadStatus.className = "status bad";
         els.resultsMeta.textContent = "Analysis failed.";
         els.resultsMeta.className = "status bad";
@@ -1587,11 +1601,6 @@
     els.sampleBtn.addEventListener("click", () => {
       els.filenameInput.value = SAMPLE_FILENAMES.join("\n");
     });
-    els.defaultUrlsBtn.addEventListener("click", () => {
-      applyDefaultUrls();
-      els.loadStatus.textContent = "Default Vidhin05 GitHub raw URLs restored.";
-      els.loadStatus.className = "status good";
-    });
     els.clearBtn.addEventListener("click", clearAll);
     els.searchInput.addEventListener("input", applyFiltersAndRender);
     els.sortSelect.addEventListener("change", applyFiltersAndRender);
@@ -1613,11 +1622,8 @@
       applyFiltersAndRender();
     });
 
-    els.expressionsUrlInput.addEventListener("change", persistConfiguredUrls);
-    els.regexesUrlInput.addEventListener("change", persistConfiguredUrls);
-
     window.addEventListener("DOMContentLoaded", () => {
-      restoreConfiguredUrls();
+      loadSavedRuleUrls();
       els.results.innerHTML = `<div class="empty">No results yet. Paste some filenames, then click Analyse.</div>`;
     });
   </script>
